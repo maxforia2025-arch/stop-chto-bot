@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#7C3AED"/>
+      <stop offset="0.5" stop-color="#DB2777"/>
+      <stop offset="1"   stop-color="#2563EB"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.65">
+      <stop offset="0"   stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="1"   stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="star" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#FDE047"/>
+      <stop offset="1"   stop-color="#F59E0B"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#1e1b4b" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="640" height="640" rx="140" fill="url(#bg)"/>
+  <rect width="640" height="640" rx="140" fill="url(#glow)"/>
+  <g fill="#FDE047" opacity="0.9">
+    <circle cx="118" cy="150" r="9"/><circle cx="540" cy="128" r="6"/>
+    <circle cx="90"  cy="470" r="6"/><circle cx="560" cy="500" r="9"/>
+    <circle cx="150" cy="560" r="5"/><circle cx="500" cy="360" r="5"/>
+  </g>
+  <polygon points="320.0,20.0 371.6,93.8 450.2,49.7 464.6,138.6 554.5,133.0 529.0,219.3 612.5,253.2 552.0,320.0 612.5,386.8 529.0,420.7 554.5,507.0 464.6,501.4 450.2,590.3 371.6,546.2 320.0,620.0 268.4,546.2 189.8,590.3 175.4,501.4 85.5,507.0 111.0,420.7 27.5,386.8 88.0,320.0 27.5,253.2 111.0,219.3 85.5,133.0 175.4,138.6 189.8,49.7 268.4,93.8" fill="url(#star)" stroke="#1e1b4b" stroke-width="10"
+           stroke-linejoin="round" filter="url(#soft)"/>
+  <polygon points="320.0,42.0 368.5,107.5 440.6,69.5 455.9,149.6 537.3,146.7 516.4,225.4 591.0,258.1 538.0,320.0 591.0,381.9 516.4,414.6 537.3,493.3 455.9,490.4 440.6,570.5 368.5,532.5 320.0,598.0 271.5,532.5 199.4,570.5 184.1,490.4 102.7,493.3 123.6,414.6 49.0,381.9 102.0,320.0 49.0,258.1 123.6,225.4 102.7,146.7 184.1,149.6 199.4,69.5 271.5,107.5" fill="none" stroke="#ffffff" stroke-width="4"
+           stroke-linejoin="round" opacity="0.55"/>
+  <text x="320" y="422" text-anchor="middle"
+        font-family="'Arial Black', Impact, Arial, sans-serif" font-size="300"
+        font-weight="900" fill="#1e1b4b" letter-spacing="-6">?!</text>
+</svg>
