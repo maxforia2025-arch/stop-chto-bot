@@ -36,6 +36,7 @@ import time
 import argparse
 import urllib.parse
 import urllib.request
+import cards
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FACTS_PATH = os.path.join(BASE_DIR, "facts.json")
@@ -204,6 +205,39 @@ def send_telegram(token, channel_id, text):
     return resp
 
 
+def send_telegram_photo(token, channel_id, photo_path, caption):
+    """Отправить фото-карточку с подписью (multipart/form-data, stdlib)."""
+    url = f"https://api.telegram.org/bot{token}/sendPhoto"
+    boundary = "----DopamineBoundary7MA4YWxkTrZu0gW"
+    with open(photo_path, "rb") as f:
+        img = f.read()
+
+    def field(name, value):
+        return (f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
+                f"{value}\r\n").encode("utf-8")
+
+    body = b""
+    body += field("chat_id", str(channel_id))
+    body += field("caption", caption[:1024])
+    body += field("parse_mode", "HTML")
+    body += (f"--{boundary}\r\n"
+             f'Content-Disposition: form-data; name="photo"; filename="card.png"\r\n'
+             f"Content-Type: image/png\r\n\r\n").encode("utf-8")
+    body += img + b"\r\n"
+    body += f"--{boundary}--\r\n".encode("utf-8")
+
+    req = urllib.request.Request(url, data=body, headers={
+        "User-Agent": UA,
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+    })
+    with urllib.request.urlopen(req, timeout=60) as r:
+        resp = json.loads(r.read().decode("utf-8"))
+    if not resp.get("ok"):
+        raise RuntimeError(resp)
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Главный проход
 # ---------------------------------------------------------------------------
@@ -219,8 +253,21 @@ def run_once(cfg, facts, history, token, channel_id, dry_run=False):
         print(text)
         print("═" * 48 + "\n")
     else:
-        send_telegram(token, channel_id, text)
-        log(f"опубликовано: {fact['id']} ({fact['cat']})")
+        card = None
+        try:
+            card = cards.render_card(fact)
+        except Exception as e:
+            log(f"карточка не собралась ({e}) — шлю текстом")
+        if card:
+            try:
+                send_telegram_photo(token, channel_id, card, text)
+                log(f"опубликовано с фото: {fact['id']} ({fact['cat']})")
+            except Exception as e:
+                log(f"фото не ушло ({e}) — шлю текстом")
+                send_telegram(token, channel_id, text)
+        else:
+            send_telegram(token, channel_id, text)
+            log(f"опубликовано (текст): {fact['id']} ({fact['cat']})")
 
     history.append(fact["id"])
     return fact

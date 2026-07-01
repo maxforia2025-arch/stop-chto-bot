@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 secret.json
 .DS_Store
+card_tmp.*
+card_preview.png
+card_long.png
+card_short.png
