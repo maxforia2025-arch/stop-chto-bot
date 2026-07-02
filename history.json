@@ -10,5 +10,6 @@
 "money_compound",
 "money_billion_seconds",
 "psy_10min",
-"earth_core"
+"earth_core",
+"psy_zeigarnik"
 ]
