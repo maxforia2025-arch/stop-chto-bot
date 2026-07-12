@@ -1,0 +1,51 @@
+name: refill-facts
+
+# Автопополнение банка фактов через Claude API — раз в сутки.
+# Генерирует новые «вау»-факты, только если непоказанных осталось мало.
+on:
+  schedule:
+    - cron: "0 3 * * *"    # 06:00 МСК ежедневно
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "Сколько фактов сгенерировать принудительно"
+        default: "15"
+        type: string
+
+permissions:
+  contents: write          # коммитим обновлённый facts.json
+
+concurrency:
+  group: refill
+  cancel-in-progress: false
+
+jobs:
+  refill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Anthropic SDK
+        run: pip install --quiet anthropic
+
+      - name: Generate facts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "${{ github.event.inputs.count }}" ] && [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python3 generate_facts.py --count "${{ github.event.inputs.count }}"
+          else
+            python3 generate_facts.py --ensure 30
+          fi
+
+      - name: Commit new facts
+        run: |
+          git config user.name  "dopamine-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add facts.json
+          git diff --staged --quiet || git commit -m "facts: авто-пополнение через Claude [skip ci]"
+          git push
