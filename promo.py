@@ -31,25 +31,48 @@ def load_promo():
         return json.load(f)
 
 
-def next_variant(cfg):
-    """Взять следующий креатив по кругу (состояние в promo_state.json)."""
-    idx = 0
+def read_counter():
     if os.path.exists(STATE_PATH):
         try:
             with open(STATE_PATH, encoding="utf-8") as f:
-                idx = int(json.load(f).get("next", 0))
+                return int(json.load(f).get("n", 0))
         except Exception:
-            idx = 0
-    variants = cfg["variants"]
-    v = variants[idx % len(variants)]
+            return 0
+    return 0
+
+
+def write_counter(n):
     with open(STATE_PATH, "w", encoding="utf-8") as f:
-        json.dump({"next": (idx + 1) % len(variants)}, f, ensure_ascii=False)
-    return v
+        json.dump({"n": n}, f, ensure_ascii=False)
 
 
-def build_promo_svg(v, cfg):
+def pick(cfg, n):
+    """Один канал = одно воскресенье, по кругу.
+    Креатив внутри канала меняется на каждом новом круге."""
+    channels = cfg["channels"]
+    ch = channels[n % len(channels)]
+    variants = ch["variants"]
+    v = variants[(n // len(channels)) % len(variants)]
+    return ch, v
+
+
+def channel_is_live(handle, token):
+    """Проверить через Bot API, что рекламируемый канал существует."""
+    if not token:
+        return True   # без токена не проверяем (dry-run)
+    import urllib.request, urllib.error, urllib.parse
+    url = (f"https://api.telegram.org/bot{token}/getChat"
+           f"?chat_id={urllib.parse.quote(handle)}")
+    try:
+        with urllib.request.urlopen(url, timeout=15) as r:
+            return json.load(r).get("ok", False)
+    except Exception:
+        return False
+
+
+def build_promo_svg(v, ch):
     """Мраморно-тёмная карточка с золотом — визуально отличается от фактов."""
-    handle = cfg["target_handle"]
+    handle = ch["handle"]
     parts = []
 
     # кикер-чип
@@ -105,9 +128,9 @@ def build_promo_svg(v, cfg):
 </svg>'''
 
 
-def build_caption(v, cfg):
-    name = html.escape(cfg["target_name"])
-    handle = html.escape(cfg["target_handle"])
+def build_caption(v, ch):
+    name = html.escape(ch["name"])
+    handle = html.escape(ch["handle"])
     return (
         f"🏛 <b>{html.escape(v['kicker']).capitalize()}</b>\n\n"
         f"{html.escape(v['text'])}\n\n"
@@ -122,33 +145,45 @@ def main():
     args = ap.parse_args()
 
     cfg = load_promo()
-    if "ЗАМЕНИ" in cfg["target_handle"]:
-        print("[promo] ⚠️  В promo.json не задан реальный target_handle — "
-              "реклама не отправлена (это не ошибка).")
-        return
-
-    v = next_variant(cfg)
-    caption = build_caption(v, cfg)
     token = os.environ.get("BOT_TOKEN", "").strip()
     channel = os.environ.get("CHANNEL_ID", "").strip()
+    n = read_counter()
+    total = len(cfg["channels"])
+
+    # выбираем канал этой недели; если он вдруг недоступен — берём следующий
+    ch = v = None
+    for step in range(total):
+        cand_ch, cand_v = pick(cfg, n + step)
+        if args.dry_run or channel_is_live(cand_ch["handle"], token):
+            ch, v, n = cand_ch, cand_v, n + step
+            break
+        print(f"[promo] канал {cand_ch['handle']} недоступен — пропускаю")
+    if ch is None:
+        print("[promo] ни один канал не доступен — реклама не отправлена.")
+        return
+
+    caption = build_caption(v, ch)
+    print(f"[promo] неделя #{n + 1}: канал {ch['name']} ({ch['handle']}), "
+          f"креатив «{v['kicker']}»")
 
     if args.dry_run or not token or not channel:
         print("\n" + "═" * 48)
         print(caption)
         print("═" * 48)
-        png = cards.rasterize(build_promo_svg(v, cfg),
+        png = cards.rasterize(build_promo_svg(v, ch),
                               os.path.join(HERE, "promo_preview.png"), W, H)
         print(f"[promo] карточка: {png}")
         return
 
-    png = cards.rasterize(build_promo_svg(v, cfg),
+    png = cards.rasterize(build_promo_svg(v, ch),
                           os.path.join(HERE, "promo_tmp.png"), W, H)
     if png:
         bot.send_telegram_photo(token, channel, png, caption)
-        print(f"[promo] реклама опубликована (креатив «{v['kicker']}») с фото")
+        print(f"[promo] опубликовано с фото: {ch['name']}")
     else:
         bot.send_telegram(token, channel, caption)
-        print(f"[promo] реклама опубликована (креатив «{v['kicker']}») текстом")
+        print(f"[promo] опубликовано текстом: {ch['name']}")
+    write_counter(n + 1)
 
 
 if __name__ == "__main__":
