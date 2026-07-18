@@ -116,14 +116,18 @@ def build_card_svg(fact):
 
 def render_card(fact, out_path=None):
     """Собрать SVG факта и растеризовать в PNG. Вернуть путь к PNG или None."""
+    return rasterize(build_card_svg(fact), out_path)
+
+
+def rasterize(svg_text, out_path=None, width=CARD_W, height=CARD_H):
+    """Растеризовать произвольный SVG в PNG (rsvg-convert → cairosvg → Chrome)."""
     out_path = out_path or os.path.join(HERE, "card_tmp.png")
     svg_path = os.path.join(HERE, "card_tmp.svg")
     with open(svg_path, "w", encoding="utf-8") as f:
-        f.write(build_card_svg(fact))
-
+        f.write(svg_text)
     # 1) rsvg-convert (быстро, идеально для CI)
     if shutil.which("rsvg-convert"):
-        r = subprocess.run(["rsvg-convert", "-w", str(CARD_W), "-h", str(CARD_H),
+        r = subprocess.run(["rsvg-convert", "-w", str(width), "-h", str(height),
                             svg_path, "-o", out_path], capture_output=True)
         if r.returncode == 0 and os.path.exists(out_path):
             return out_path
@@ -132,7 +136,7 @@ def render_card(fact, out_path=None):
     try:
         import cairosvg
         cairosvg.svg2png(url=svg_path, write_to=out_path,
-                         output_width=CARD_W, output_height=CARD_H)
+                         output_width=width, output_height=height)
         if os.path.exists(out_path):
             return out_path
     except Exception:
@@ -144,7 +148,7 @@ def render_card(fact, out_path=None):
         if chrome and os.path.exists(chrome) if chrome else False:
             r = subprocess.run([chrome, "--headless", "--disable-gpu",
                                 "--force-device-scale-factor=1", "--hide-scrollbars",
-                                f"--window-size={CARD_W},{CARD_H}",
+                                f"--window-size={width},{height}",
                                 f"--screenshot={out_path}", svg_path],
                                capture_output=True)
             if os.path.exists(out_path):

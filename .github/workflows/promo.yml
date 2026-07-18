@@ -1,0 +1,42 @@
+name: weekly-promo
+
+# Еженедельная реклама канала «Эвномия» в «Стоп, что?!».
+# Воскресенье, 18:00 МСК (15:00 UTC) — прайм-тайм, максимум охвата.
+on:
+  schedule:
+    - cron: "0 15 * * 0"   # каждое воскресенье
+  workflow_dispatch:
+
+permissions:
+  contents: write          # коммитим promo_state.json (ротация креативов)
+
+concurrency:
+  group: promo
+  cancel-in-progress: false
+
+jobs:
+  promo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SVG renderer + fonts
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin fonts-liberation fonts-dejavu-core
+
+      - name: Post weekly promo
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        run: python3 promo.py
+
+      - name: Commit rotation state
+        run: |
+          git config user.name  "dopamine-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add promo_state.json
+          git diff --staged --quiet || git commit -m "promo: ротация креатива [skip ci]"
+          git push
