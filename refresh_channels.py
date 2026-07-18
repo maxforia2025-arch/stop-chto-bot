@@ -25,6 +25,7 @@ import urllib.error
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROMO_PATH = os.path.join(HERE, "promo.json")
 LIST_PATH = os.path.join(HERE, "channels.txt")
+EXCL_PATH = os.path.join(HERE, "excluded.txt")
 MODEL = "claude-opus-4-8"
 HOST_CHANNEL = "@stop_chto_daily"   # сама площадка — рекламировать не нужно
 
@@ -78,6 +79,24 @@ def read_list():
                     continue
                 handles.append(line if line.startswith("@") else "@" + line)
     return handles
+
+
+def read_excluded():
+    """Каналы, которые НИКОГДА не рекламируем (решение Президента).
+
+    Проверяется и для файла-списка, и для авто-подхвата: иначе канал,
+    где бот админ, вернётся в ротацию сам.
+    """
+    excl = set()
+    if os.path.exists(EXCL_PATH):
+        with open(EXCL_PATH, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                h = line if line.startswith("@") else "@" + line
+                excl.add(h.lower())
+    return excl
 
 
 def discover_from_updates(token):
@@ -184,9 +203,13 @@ def main():
     known = {c["handle"].lower(): c for c in promo.get("channels", [])}
 
     # 1. кандидаты: файл-список + авто-подхват
+    excluded = read_excluded()
     handles, seen = [], set()
     for h in read_list() + discover_from_updates(token):
         k = h.lower()
+        if k in excluded:
+            print(f"  [СТОП] {h} — в чёрном списке, не рекламируем")
+            continue
         if k in seen or k == HOST_CHANNEL.lower():
             continue
         seen.add(k)

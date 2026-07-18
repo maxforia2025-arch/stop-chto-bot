@@ -9,5 +9,4 @@
 # Англоязычные YouTube-каналы сюда не добавляем (только Telegram).
 
 @economicrussialetsgo
-@maxforia
 @FLYEVER_DEALS
