@@ -1,0 +1,42 @@
+name: refresh-channels
+
+# Еженедельная сверка списка рекламируемых каналов Maxforia Group.
+# Суббота 15:00 МСК — за день до воскресной рекламы, чтобы список был свежим.
+on:
+  schedule:
+    - cron: "0 12 * * 6"   # каждую субботу
+  workflow_dispatch:
+
+permissions:
+  contents: write          # коммитим обновлённый promo.json
+
+concurrency:
+  group: refresh-channels
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Anthropic SDK
+        run: pip install --quiet anthropic
+
+      - name: Refresh channel list
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python3 refresh_channels.py
+
+      - name: Commit updated rotation
+        run: |
+          git config user.name  "dopamine-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add promo.json channels.txt
+          git diff --staged --quiet || git commit -m "promo: сверка списка каналов [skip ci]"
+          git push
