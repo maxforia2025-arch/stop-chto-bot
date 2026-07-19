@@ -129,10 +129,17 @@ def choose_fact(facts, history):
     unseen = [f for f in facts if f["id"] not in posted]
     if unseen:
         return _pick(unseen)
-    # Все показаны хотя бы раз — берём тот, что не появлялся дольше всех.
+
+    # Банк исчерпан — идём на второй круг.
+    # ВАЖНО: берём СЛУЧАЙНЫЙ из давно не показанных, а не строго самый старый.
+    # Иначе второй круг повторяет ту же последовательность, что и первый,
+    # и подписчики моментально замечают «это уже было».
+    log("⚠️  БАНК ИСЧЕРПАН — все факты уже публиковались. "
+        "Нужно пополнить facts.json (см. refill / generate_facts.py).")
     order = {fid: i for i, fid in enumerate(history)}  # больше индекс = свежее
     facts_sorted = sorted(facts, key=lambda f: order.get(f["id"], -1))
-    return facts_sorted[0]
+    pool = facts_sorted[:max(1, min(20, len(facts_sorted) // 3))]
+    return _pick(pool)
 
 
 # ---------------------------------------------------------------------------
