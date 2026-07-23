@@ -68,6 +68,35 @@ def norm_title(t):
     return re.sub(r"\s+", " ", t.lower()).strip()
 
 
+# --- смысловая дедупликация (тот же стеммер, что в bot.py) -------------------
+_STOP = {"который", "которые", "которых", "которое", "этого", "этот", "самый",
+         "самая", "самое", "почти", "около", "более", "менее", "есть", "было",
+         "были", "просто", "каждый", "каждую", "каждое", "прямо", "сейчас",
+         "весь", "всей", "всего", "один", "одна", "одно", "даже", "чтобы",
+         "после", "между", "через", "когда", "только", "может", "можно",
+         "нужно", "человек", "человека"}
+_SUF = ("ившись", "ывшись", "ами", "ями", "ах", "ях", "ов", "ев", "ий", "ой",
+        "ый", "ые", "ая", "яя", "ое", "ем", "ам", "ом", "ешь", "ишь", "ет",
+        "ит", "ут", "ют", "ат", "ят", "ла", "ло", "ли", "ть", "ы", "и", "а",
+        "я", "о", "е", "у", "ю", "ь", "й")
+
+
+def _stem(w):
+    for s in _SUF:
+        if len(w) - len(s) >= 4 and w.endswith(s):
+            return w[:-len(s)]
+    return w
+
+
+def sig(fact):
+    blob = (fact.get("title", "") + " " + fact.get("fact", "")).lower()
+    return {_stem(w) for w in re.findall(r"[а-яёa-z0-9]{5,}", blob) if w not in _STOP}
+
+
+def similar(a_sig, b_sig, thr=0.30):
+    return bool(a_sig) and bool(b_sig) and len(a_sig & b_sig) / len(a_sig | b_sig) >= thr
+
+
 def build_prompt(existing_titles, n):
     titles_block = "\n".join(f"- {t}" for t in existing_titles)
     return (
@@ -80,7 +109,9 @@ def build_prompt(existing_titles, n):
         f"заставляющие сказать «стоп, что?!».\n"
         f"3. Разные категории: космос, тело, мозг, деньги, история, природа, "
         f"технологии, числа, психология, земля, время, наука.\n"
-        f"4. НЕ повторяй эти уже существующие темы (по смыслу тоже):\n{titles_block}\n\n"
+        f"4. НЕ повторяй эти уже существующие факты — ни дословно, ни ПЕРЕСКАЗОМ "
+        f"другими словами. Если суть факта совпадает с любым из списка — это "
+        f"запрещённый повтор, даже если формулировка новая:\n{titles_block}\n\n"
         f"Формат каждого факта (строго):\n"
         f"- id: короткий уникальный слаг на английском (латиница, нижний регистр, "
         f"подчёркивания), например \"space_black_hole_time\"\n"
@@ -99,7 +130,8 @@ def generate(n, existing):
         print("[gen] НЕТ ANTHROPIC_API_KEY — пропускаю генерацию (не ошибка).")
         return []
 
-    existing_titles = [f["title"] for f in existing]
+    # даём модели заголовок + суть каждого факта, чтобы она не пересказывала
+    existing_titles = [f"{f['title']} — {f['fact'][:60]}" for f in existing]
     client = anthropic.Anthropic()
     resp = client.messages.create(
         model=MODEL,
@@ -115,6 +147,7 @@ def generate(n, existing):
 def merge(existing, new):
     seen_ids = {f["id"] for f in existing}
     seen_titles = {norm_title(f["title"]) for f in existing}
+    sigs = [sig(f) for f in existing]     # смысловые сигнатуры всего банка
     added = []
     for f in new:
         if not all(k in f and f[k].strip() for k in ("cat", "title", "fact", "wow")):
@@ -127,9 +160,15 @@ def merge(existing, new):
             i += 1
         if norm_title(f["title"]) in seen_titles:
             continue
+        # смысловой дубль? (разные слова, но тот же факт)
+        s = sig(f)
+        if any(similar(s, ps) for ps in sigs):
+            print(f"   [dup] пропускаю смысловой повтор: {f['title']}")
+            continue
         f["id"] = fid
         seen_ids.add(fid)
         seen_titles.add(norm_title(f["title"]))
+        sigs.append(s)
         added.append({"id": fid, "cat": f["cat"].strip(), "title": f["title"].strip(),
                       "fact": f["fact"].strip(), "wow": f["wow"].strip()})
     return added
